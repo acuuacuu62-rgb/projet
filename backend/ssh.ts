@@ -2,35 +2,68 @@ import ssh2, { type ConnectConfig, type Client as SSHClient } from "ssh2";
 const { Client } = ssh2;
 import { readFile } from "node:fs/promises";
 import { destination, fingerprint } from "./security";
-export async function scanHost(host: string, port: number) {
-  const ip = await destination(host);
+export function scanFailure(error: {
+  code?: string;
+  level?: string;
+  message?: string;
+}) {
+  if (error.code === "ECONNREFUSED")
+    return "SSH port refused the connection. Check that sshd is running and listening on this port.";
+  if (
+    ["ENETUNREACH", "EHOSTUNREACH", "EADDRNOTAVAIL"].includes(error.code || "")
+  )
+    return "SSH network is unreachable from the ZetaInstall worker. Check routing, IPv4/IPv6 availability and the provider firewall.";
+  if (error.code === "ETIMEDOUT" || error.level === "client-timeout")
+    return "SSH handshake timed out before the host key was received. Check provider/local firewall rules, source-IP restrictions and SSH connection limits.";
+  if (/no matching|no (?:kex|host key|cipher)/i.test(error.message || ""))
+    return "SSH algorithm negotiation failed. Update the target SSH server configuration to support modern algorithms; host key verification has not been disabled.";
+  if (error.code === "ECONNRESET")
+    return "SSH connection was reset before its host key was received. Check sshd logs, Fail2ban and provider connection limits for the worker IP.";
+  return "SSH connection closed before its host key was received. Verify that this port serves SSH and check sshd logs and source-IP restrictions.";
+}
+
+// Internal transport helper; public requests must pass destination() validation first.
+export function scanSSHAddress(ip: string, port: number, timeout = 20000) {
   return new Promise<{ ip: string; fingerprint: string }>((resolve, reject) => {
     const client = new Client();
-    let found = "";
-    client
-      .on("error", () => {
-        if (found) resolve({ ip, fingerprint: found });
-        else
-          reject(
-            new Error(
-              "SSH handshake failed. Check the public address, port and provider firewall.",
-            ),
-          );
-      })
-      .on("close", () => {
-        if (found) resolve({ ip, fingerprint: found });
+    let found = "",
+      settled = false;
+    const finish = (error?: Error) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      client.destroy();
+      if (found) resolve({ ip, fingerprint: found });
+      else reject(error || new Error(scanFailure({})));
+    };
+    const timer = setTimeout(
+      () => finish(new Error(scanFailure({ code: "ETIMEDOUT" }))),
+      timeout,
+    );
+    client.on("error", (error: Error & { code?: string; level?: string }) =>
+      finish(new Error(scanFailure(error))),
+    );
+    client.on("close", () => finish());
+    client.on("end", () => finish());
+    try {
+      client.connect({
+        host: ip,
+        port,
+        username: "zetainstall-fingerprint-only",
+        readyTimeout: timeout,
+        hostVerifier: (key: Buffer) => {
+          found = fingerprint(key);
+          // Abort before authentication; the user must approve this fingerprint first.
+          return false;
+        },
       });
-    client.connect({
-      host: ip,
-      port,
-      username: "zetainstall-fingerprint-only",
-      readyTimeout: 10000,
-      hostVerifier: (key: Buffer) => {
-        found = fingerprint(key as Buffer);
-        return false;
-      },
-    });
+    } catch {
+      finish(new Error(scanFailure({})));
+    }
   });
+}
+export async function scanHost(host: string, port: number) {
+  return scanSSHAddress(await destination(host), port);
 }
 export async function connect(server: any, credential: any) {
   const ip = await destination(server.host);
