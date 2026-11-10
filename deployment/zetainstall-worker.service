@@ -1,0 +1,21 @@
+[Unit]
+Description=ZetaInstall SSH worker
+After=network-online.target zetainstall-api.service
+Requires=zetainstall-api.service
+[Service]
+Type=simple
+User=zetainstall
+Group=zetainstall
+WorkingDirectory=/opt/zetainstall
+EnvironmentFile=/etc/zetainstall.env
+ExecStart=/opt/zetainstall/node_modules/.bin/tsx worker/main.ts
+Restart=on-failure
+RestartSec=5
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+TimeoutStopSec=3700
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,247 @@
+export const articles = [
+  {
+    title: "Getting started",
+    category: "THE ESSENTIALS",
+    description:
+      "Your first deployment, from an empty workspace to a connected server.",
+    steps: [
+      "Create a ZetaInstall account. Your workspace is isolated from other users.",
+      "Generate an SSH key and download the private key to a safe location.",
+      "Add the public key to your VPS using the provider console or an existing SSH connection.",
+      "Open Add VPS, enter the public address, and compare the host fingerprint with the provider console.",
+      "Test the connection, review detected resources, then save the server.",
+      "Choose an installer, review the exact changes, and follow the persistent job.",
+    ],
+  },
+  {
+    title: "Register and login",
+    category: "THE ESSENTIALS",
+    description: "Access your workspace and keep your sessions secure.",
+    steps: [
+      "Choose Create account and use a unique password with at least 12 characters.",
+      "Use Account Settings to update your profile, verify email, or change your password.",
+      "Review Sessions and revoke devices you no longer use.",
+      "Password reset requires the operator to configure SMTP delivery.",
+    ],
+  },
+  {
+    title: "Add a VPS",
+    category: "SERVERS & SSH",
+    description: "Connect any compatible VPS without a provider API key.",
+    steps: [
+      "Choose Universal VPS for the standard SSH connection or UpCloud Special Setup for that provider.",
+      "Enter the public address, SSH port and the username supplied by your OS image.",
+      "Select your SSH key or enter a password for the initial connection.",
+      "Scan the host key. Compare its SHA256 fingerprint with a trusted provider console.",
+      "Confirm trust, run the connection test, then save the verified configuration.",
+    ],
+  },
+  {
+    title: "Create an SSH key",
+    category: "SERVERS & SSH",
+    description:
+      "Create an Ed25519 or RSA 4096 key without opening a terminal.",
+    steps: [
+      "Open SSH Key Manager and select Generate key.",
+      "Ed25519 is recommended. Use RSA 4096 only for compatibility.",
+      "This release generates keys on the persistent backend and encrypts the private key in its vault. Read the custody notice before continuing.",
+      "An optional passphrase protects the downloaded OpenSSH file.",
+      "Download your private key immediately and copy or download the public key. Never share your private key.",
+    ],
+  },
+  {
+    title: "Install a public SSH key",
+    category: "SERVERS & SSH",
+    description:
+      "Authorize the key on your server using an existing trusted connection.",
+    steps: [
+      "Copy the public key, beginning with ssh-ed25519 or ssh-rsa.",
+      "Use your provider console or existing SSH login to append it to the correct user’s ~/.ssh/authorized_keys.",
+      "Set .ssh directory permission to 700 and authorized_keys to 600. Do not replace existing keys.",
+      "Keep your original connection open and test a second connection with the new private key.",
+      "Without initial server access, use the provider’s recovery console. ZetaInstall cannot bypass SSH authentication.",
+    ],
+  },
+  {
+    title: "Connect to a VPS",
+    category: "SERVERS & SSH",
+    description: "Understand SSH identity, credentials and resource checks.",
+    steps: [
+      "Confirm that the server’s public IP and SSH port are reachable from the control plane.",
+      "Verify the host fingerprint before sending authentication credentials.",
+      "A private key passphrase is required if your selected key is encrypted.",
+      "The current fixed runner requires Python 3 and root or passwordless sudo.",
+      "A host key mismatch blocks connections. Confirm a legitimate rebuild using the provider console before adding a new trusted connection.",
+    ],
+  },
+  {
+    title: "Universal VPS mode",
+    category: "SERVERS & SSH",
+    description: "One SSH workflow across all providers.",
+    steps: [
+      "Universal mode does not need a provider API key. Other Provider accepts an unlisted host.",
+      "Provider selection is metadata, not proof that the OS supports an installer.",
+      "Only public unicast SSH addresses are supported by the current control plane.",
+      "Private-only infrastructure needs a separately designed connector; internal-address restrictions must not be disabled.",
+    ],
+  },
+  {
+    title: "UpCloud special setup",
+    category: "INSTALLATION",
+    description:
+      "Inspect network paths before choosing direct or reverse proxy mode.",
+    steps: [
+      "Add an UpCloud VPS using the separate UpCloud setup option.",
+      "Verify its public IP, DNS and local firewall. Check external firewall rules in the UpCloud console.",
+      "Choose direct Wings HTTPS or Nginx on public 443 proxying to loopback Wings HTTPS.",
+      "The proxy must verify the upstream certificate hostname and trust chain.",
+      "SFTP and game allocations use separate TCP/UDP ports and do not pass through the HTTP proxy.",
+    ],
+  },
+  {
+    title: "Install Pterodactyl Panel",
+    category: "INSTALLATION",
+    description:
+      "Prepare a dedicated Linux VPS for a fresh Panel installation.",
+    steps: [
+      "The first automatic profile is Ubuntu 24.04 with at least 2 GiB RAM and 10 GiB free disk. It still requires staging approval by the operator.",
+      "Point all domain A/AAAA records to addresses actually assigned to the VPS.",
+      "Use a fresh VPS without an existing Panel, database, Redis or Nginx installation.",
+      "Enter the administrator email, username and a strong password; review the TLS and package changes.",
+      "The worker checks PHP security patch requirements and verifies services and HTTPS after installation.",
+      "Securely back up /var/www/pterodactyl/.env including APP_KEY. Do not regenerate APP_KEY when recovering an existing Panel.",
+    ],
+  },
+  {
+    title: "Create a Pterodactyl node",
+    category: "INSTALLATION",
+    description: "Create a node inside your existing Pterodactyl Panel.",
+    steps: [
+      "Sign in to your Panel as an administrator.",
+      "Open Admin Area → Locations and create a location if needed.",
+      "Open Nodes → Create New, enter the node FQDN, resources and daemon/SFTP ports.",
+      "Choose TLS settings consistent with your direct or reverse proxy topology.",
+      "Open the Configuration tab for the created node.",
+    ],
+  },
+  {
+    title: "Find your Node ID",
+    category: "INSTALLATION",
+    description: "Use the numeric node identifier from your Panel.",
+    steps: [
+      "Open Admin Area → Nodes and select the target node.",
+      "Read the numeric node ID from the node URL or configuration page.",
+      "This ID is different from the node UUID in the Wings YAML file.",
+      "Use the same Panel origin, FQDN and port settings throughout configuration.",
+    ],
+  },
+  {
+    title: "Find configuration credentials",
+    category: "INSTALLATION",
+    description:
+      "Understand what the Panel’s Generate Token button actually grants.",
+    steps: [
+      "Open Admin Area → Nodes → your node → Configuration.",
+      "Prefer copying the official YAML configuration into the Wings installer. It contains a sensitive daemon token.",
+      "On Panel 1.15.2, Generate Token creates or reuses an Application API Key with node read/write permissions. It is not necessarily a one-time, single-node credential.",
+      "Never paste arbitrary command text into ZetaInstall. The installer only accepts validated configuration.",
+      "Review revocation of a deployment key separately; do not revoke a reused key blindly.",
+    ],
+  },
+  {
+    title: "Install Wings",
+    category: "INSTALLATION",
+    description: "Connect a Linux Docker host to an existing Panel.",
+    steps: [
+      "Prepare a compatible Ubuntu 24.04 VPS with Docker installed from its official signed repository.",
+      "Add the node to your Panel and copy its official YAML configuration.",
+      "Enter Panel URL, Node ID, node FQDN, certificate contact email and configuration in the installer.",
+      "Check daemon/SFTP port conflicts, DNS, TLS and external firewall rules.",
+      "Wings service and authenticated API checks run after configuration.",
+      "Panel-to-Wings connectivity must also be verified from the Panel host; an accessible daemon alone is not a fully verified node.",
+    ],
+  },
+  {
+    title: "Set up a domain",
+    category: "NETWORK & SECURITY",
+    description: "Use a dedicated FQDN for your Panel or node.",
+    steps: [
+      "Choose a domain such as panel.example.com or node.example.com.",
+      "Add the domain to SSL Manager and associate it with the correct server.",
+      "Avoid reusing a domain already serving an unrelated application.",
+      "A successful DNS lookup is not proof that port 80 or 443 is reachable.",
+    ],
+  },
+  {
+    title: "Configure DNS",
+    category: "NETWORK & SECURITY",
+    description: "Make sure every address record reaches the intended host.",
+    steps: [
+      "Set A records to the server’s public IPv4 address.",
+      "Only publish AAAA records when the server’s IPv6 route and firewall work.",
+      "Check CAA policy before requesting a certificate.",
+      "Wait for authoritative DNS propagation and verify from an external resolver.",
+      "Proxy/CDN and NAT configurations require additional topology validation.",
+    ],
+  },
+  {
+    title: "Configure SSL",
+    category: "NETWORK & SECURITY",
+    description: "Inspect TLS without replacing an existing certificate.",
+    steps: [
+      "Add your domain in SSL Manager, then run Verify TLS.",
+      "Verification checks a trusted certificate chain, hostname and expiry over HTTPS.",
+      "Fresh installation uses Certbot HTTP-01, requiring publicly reachable port 80.",
+      "Existing certificates are preserved. Conflicts require an explicit configuration review.",
+      "Before enabling automatic renewal, configure a renewal method and deploy hook consistent with the web server, then test renewal with the CA staging environment.",
+    ],
+  },
+  {
+    title: "Configure a firewall",
+    category: "NETWORK & SECURITY",
+    description: "Check both the server and provider network layers.",
+    steps: [
+      "Run Firewall Checker against a connected VPS to inspect listening ports and local rules.",
+      "Inspect the external firewall in your provider console; unknown provider status is not a pass.",
+      "Keep SSH access and recovery console available before changing rules.",
+      "Allow only approved HTTP/HTTPS, Wings, SFTP and game allocation ports.",
+      "Docker’s published ports can bypass some UFW rules. Review the active Docker/iptables/nftables backend.",
+    ],
+  },
+  {
+    title: "Troubleshoot a node",
+    category: "TROUBLESHOOTING",
+    description: "Separate verified observations from possible causes.",
+    steps: [
+      "Check DNS and certificate hostname on the node FQDN.",
+      "Test the daemon port from the Panel host, not only from your browser.",
+      "Confirm node daemon/SFTP ports and TLS mode match the Panel settings.",
+      "Inspect external firewall rules and time synchronization.",
+      "Run Diagnostics and recheck after any repair before declaring the issue fixed.",
+    ],
+  },
+  {
+    title: "Troubleshoot Wings",
+    category: "TROUBLESHOOTING",
+    description: "Inspect Docker, systemd, credentials and network paths.",
+    steps: [
+      "Use Diagnostics to check docker and wings service status.",
+      "Inspect the root-owned /etc/pterodactyl/config.yml locally without sharing its daemon token.",
+      "Confirm Docker works with the VPS kernel/cgroup/virtualization configuration.",
+      "Check journalctl -u wings locally and redact credentials before sharing logs.",
+      "For reverse proxy mode, verify Nginx upstream TLS and WebSocket forwarding; SFTP remains separate.",
+    ],
+  },
+  {
+    title: "Recover an installation",
+    category: "TROUBLESHOOTING",
+    description: "Reconcile remote state before retrying interrupted work.",
+    steps: [
+      "A disconnected worker marks the job as recovery required rather than repeating remote changes.",
+      "Run diagnostics and inspect services, package manager state and the installation directory.",
+      "Preserve database backups, APP_KEY and existing TLS keys.",
+      "Do not rerun a fresh installer on a partially installed target without reviewing what already exists.",
+      "database.json is backed up on the persistent control plane; stop the API before an operator restores a validated snapshot. Restore the vault key from separate secure storage.",
+    ],
+  },
+];

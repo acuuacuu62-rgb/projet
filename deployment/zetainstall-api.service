@@ -1,0 +1,22 @@
+[Unit]
+Description=ZetaInstall persistent API
+After=network-online.target
+Wants=network-online.target
+[Service]
+Type=simple
+User=zetainstall
+Group=zetainstall
+WorkingDirectory=/opt/zetainstall
+EnvironmentFile=/etc/zetainstall.env
+ExecStart=/opt/zetainstall/node_modules/.bin/tsx backend/main.ts
+Restart=on-failure
+RestartSec=5
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/zetainstall /var/lib/zetainstall-keys
+TimeoutStopSec=90
+[Install]
+WantedBy=multi-user.target
