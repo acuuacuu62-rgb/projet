@@ -5,6 +5,7 @@ import {
   useState,
   useEffect,
   useCallback,
+  useRef,
   type ReactNode,
 } from "react";
 import { api, setCsrf } from "@/lib/client";
@@ -18,7 +19,7 @@ type Context = {
   jobs: any[];
   activity: any[];
   loading: boolean;
-  refresh: () => Promise<void>;
+  refresh: (options?: { expectedUserId?: string }) => Promise<void>;
   notice: (s: string, error?: boolean) => void;
   auth: (mode?: string) => void;
   requireAuth: () => boolean;
@@ -42,6 +43,8 @@ export function Provider({ children }: { children: ReactNode }) {
   });
   const [toast, setToast] = useState<any>(null),
     [authMode, setAuthMode] = useState<string | null>(null);
+  const requestNumber = useRef(0);
+  const verifyingLogin = useRef(false);
   const notice = useCallback((text: string, error = false) => {
     setToast({ text, error });
   }, []);
@@ -51,13 +54,47 @@ export function Provider({ children }: { children: ReactNode }) {
       return () => clearTimeout(timer);
     }
   }, [toast]);
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (options?: { expectedUserId?: string }) => {
+    const expectedUserId = options?.expectedUserId;
+    if (!expectedUserId && verifyingLogin.current) return;
+    if (expectedUserId) verifyingLogin.current = true;
+    const request = ++requestNumber.current;
     try {
       const data = await api("/workspace");
-      setCsrf(data.csrf);
-      setState({ ...data, loading: false });
+      if (request === requestNumber.current) {
+        setCsrf(data.csrf);
+        setState({ ...data, loading: false });
+      }
+      if (expectedUserId && data.user?.id !== expectedUserId)
+        throw new Error(
+          "Your session could not be verified. Check your browser cookies and that the website and API domains are configured correctly.",
+        );
     } catch {
-      setState((s: any) => ({ ...s, loading: false, health: null }));
+      if (request === requestNumber.current) {
+        if (expectedUserId) setCsrf("");
+        setState((s: any) => ({
+          ...s,
+          ...(expectedUserId
+            ? {
+                user: null,
+                servers: [],
+                keys: [],
+                nodes: [],
+                domains: [],
+                jobs: [],
+                activity: [],
+              }
+            : {}),
+          loading: false,
+          health: null,
+        }));
+      }
+      if (expectedUserId)
+        throw new Error(
+          "Your session could not be verified. Check your browser cookies and that the website and API domains are configured correctly.",
+        );
+    } finally {
+      if (expectedUserId) verifyingLogin.current = false;
     }
   }, []);
   useEffect(() => {
@@ -67,8 +104,12 @@ export function Provider({ children }: { children: ReactNode }) {
   }, [refresh]);
   const auth = (mode = "login") => setAuthMode(mode);
   const requireAuth = () => {
+    if (state.loading) {
+      notice("Checking your session. Please try again shortly.", true);
+      return false;
+    }
     if (!state.user) {
-      auth("register");
+      auth("login");
       return false;
     }
     return true;

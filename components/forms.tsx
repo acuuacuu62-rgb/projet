@@ -48,7 +48,7 @@ export function AuthForm({
       );
       if (forgot) setMessage(res.message);
       else {
-        await refresh();
+        await refresh({ expectedUserId: res.user.id });
         notice(
           register
             ? "Your workspace is ready. Welcome to ZetaInstall."
@@ -57,7 +57,11 @@ export function AuthForm({
         onDone();
       }
     } catch (e: any) {
-      setError(e.message);
+      setError(
+        e instanceof TypeError
+          ? "Could not reach the API. Check that this website is allowed by the API and that the API is online."
+          : e.message,
+      );
     } finally {
       setBusy(false);
     }
