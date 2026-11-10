@@ -1,6 +1,6 @@
 <!-- coderabbit-ai-generated:v1 -->
 
-<!-- coderabbit-ai-generated-section:v1:1543f25515d90bc9e65f39be82ee484404b78b2e5458e25197d6a25dd42a5e40 -->
+<!-- coderabbit-ai-generated-section:v1:cc444e8cd75690dcb39dbf202fa782505a369d0581b72370582f824a8a361179 -->
 
 # ZetaInstall
 
@@ -37,6 +37,10 @@ Panel fresh install menolak service/database/directory yang sudah ada dan mengha
 Integrasi provider API/cloud-init, pembuatan node lewat Application API, penggantian konfigurasi existing secara otomatis, perubahan firewall, rotasi KMS, verifikasi Panel-to-Wings otomatis dan recovery lintas host belum diimplementasikan. Firewall eksternal provider ditandai unknown. SFTP dan port game tidak melewati HTTP reverse proxy. Tidak ada tombol yang mengklaim aksi ini sudah dilakukan.
 
 Private key dibuat di backend dengan persetujuan eksplisit karena worker memerlukan key untuk pekerjaan tanpa browser. Ini managed custody; operator host yang memiliki vault key dan database dapat mengakses secret. Role administrator aplikasi tidak menyediakan akses private key pengguna lain. Browser-local key generation/KMS envelope encryption memerlukan fase tambahan.
+
+## Vercel dan API
+
+Untuk frontend Vercel, atur `API_UPSTREAM_URL=https://api.example.com/v1` dan `NEXT_PUBLIC_API_URL=/api` di environment Production lalu redeploy. Browser menggunakan API pada origin frontend dan Next meneruskan request ke backend HTTPS; tambahkan origin frontend yang tepat pada `ALLOWED_ORIGINS` backend. [Panduan lengkap](docs/deployment.md).
 
 ## Verifikasi
 

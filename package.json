@@ -20,7 +20,8 @@
     "test:email": "tsx --test tests/integration/email.test.ts",
     "test:e2e": "node tests/e2e/browser.mjs",
     "test:e2e:profiles": "node tests/e2e/profiles.mjs",
-    "test:e2e:session": "node tests/e2e/session.mjs"
+    "test:e2e:session": "node tests/e2e/session.mjs",
+    "test:e2e:proxy-security": "node tests/e2e/proxy-security.mjs"
   },
   "dependencies": {
     "@fastify/cookie": "^11.0.2",
