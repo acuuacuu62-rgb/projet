@@ -1,6 +1,6 @@
 <!-- coderabbit-ai-generated:v1 -->
 
-<!-- coderabbit-ai-generated-section:v1:3cf8989a5c6d5031041de5ab3f1ab5eaa2e63e2e417215854fafa5f562b23819 -->
+<!-- coderabbit-ai-generated-section:v1:d6a1cde4e293629da4833943628d9547edd4356447c986b71924b10bae619b49 -->
 
 # Kontrak API versi 1
 
@@ -37,6 +37,10 @@ Field request lengkap divalidasi di `backend/app.ts` dan `lib/contracts.ts`; UI 
 Endpoint internal worker `/claim`, `/heartbeat`, `/update` hanya tersedia loopback4001, memakai bearer worker.token privat, dan bukan API browser. Claim mengembalikan credential hanya untuk job yang ditugaskan. Epoch dan lease membatasi update. Jangan mengekspos endpoint ini melalui ingress publik.
 
 SSE event `progress` berisi job safe tanpa config_secret. UI saat ini melakukan polling; konsumsi SSE opsional menggunakan EventSource dengan withCredentials:true pada origin yang diizinkan. Tidak ada secret dalam URL event. Reconnect menerima snapshot persisten terbaru, bukan replay semua stdout command.
+
+## Profil OS installer
+
+Config job `install_panel`, `install_wings`, `configure_wings` dan `upcloud_setup` menerima `os_profile: "ubuntu-22.04" | "ubuntu-24.04"`. Jika tidak dikirim, default tetap `ubuntu-24.04` untuk kompatibilitas request lama. Profil harus cocok dengan `evidence.os_id` dan `evidence.os_version` VPS; ketidakcocokan ditolak HTTP 422 sebelum queue, setelah pemeriksaan kepemilikan. Runner memeriksa ulang OS aktual sebelum operasi. UpCloud tetap hanya untuk provider UpCloud. Gate staging tetap berlaku.
 
 
 <!-- /coderabbit-ai-generated:v1 -->

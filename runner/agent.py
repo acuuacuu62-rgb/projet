@@ -2,6 +2,29 @@
 import os,sys,json,subprocess,platform,shutil,socket,ipaddress,re,fcntl,pathlib,hashlib,urllib.request,tarfile,tempfile,secrets,time
 from urllib.parse import urlparse
 
+OS_PROFILES={'ubuntu-22.04':'22.04','ubuntu-24.04':'24.04'}
+PHP='/usr/bin/php8.3'
+
+def select_profile(info,requested='ubuntu-24.04'):
+    if requested not in OS_PROFILES:raise RuntimeError('Unknown installation OS profile')
+    if info.get('ID')!='ubuntu' or info.get('VERSION_ID')!=OS_PROFILES[requested]:raise RuntimeError('Selected installation profile does not match the actual VPS OS. Select Ubuntu 22.04 or Ubuntu 24.04 as detected.')
+    return requested
+
+def panel_dependencies(profile):
+    if profile not in OS_PROFILES:raise RuntimeError('Unknown installation OS profile')
+    step('Preparing signed package repositories for '+profile,12)
+    run(['apt-get','update'],timeout=300)
+    if profile=='ubuntu-22.04':
+        apt(['software-properties-common','ca-certificates','gnupg'])
+        # Fixed repository from the official Panel guide, never supplied by a user.
+        run(['add-apt-repository','--yes','--no-update','ppa:ondrej/php'],timeout=300)
+        run(['apt-get','update'],timeout=300)
+    apt(['ca-certificates','curl','tar','unzip','git','cron','php8.3-cli','php8.3-fpm','php8.3-gd','php8.3-mysql','php8.3-mbstring','php8.3-bcmath','php8.3-xml','php8.3-curl','php8.3-zip','composer','mariadb-server','redis-server','nginx','certbot'])
+    php=run([PHP,'-r','echo PHP_VERSION;'])[0]
+    version=re.match(r'^(\d+)\.(\d+)\.(\d+)',php)
+    if not version or tuple(map(int,version.groups()))[:2]!=(8,3) or int(version.group(3))<36:raise RuntimeError('PHP 8.3.36 or a newer PHP 8.3 security patch is required. No unsafe downgrade/override is supported.')
+    if not run([PHP,'/usr/bin/composer','--version'])[0].startswith('Composer version 2.'):raise RuntimeError('Composer 2 is required')
+
 def emit(kind,**kw):print(json.dumps(dict(kind=kind,**kw)),flush=True)
 def step(name,progress):emit('step',step=name,progress=progress)
 def run(args,data=None,timeout=120,check=True):
@@ -45,7 +68,7 @@ def public_resolve(host):
 
 def preflight(c):
     info=osinfo()
-    if info.get('ID')!='ubuntu' or info.get('VERSION_ID')!='24.04':raise RuntimeError('Automatic changes currently require the Ubuntu 24.04 profile. Other OS profiles require staging validation.')
+    select_profile(info,c.get('os_profile','ubuntu-24.04'))
     if os.geteuid()!=0:raise RuntimeError('Root or passwordless sudo is required')
     if not pathlib.Path('/run/systemd/system').exists():raise RuntimeError('A systemd Linux VPS is required')
     facts=probe()
@@ -92,11 +115,7 @@ def install_panel(c):
     email=c.get('email','')
     if not re.fullmatch(r'[^\s@]+@[^\s@]+\.[^\s@]+',email):raise RuntimeError('Valid administrator email required')
     if not re.fullmatch(r'[a-zA-Z0-9_-]{3,32}',c.get('admin_name','')) or len(c.get('admin_password',''))<12:raise RuntimeError('Invalid administrator credentials')
-    step('Preparing signed Ubuntu package repositories',12);run(['apt-get','update'],timeout=300)
-    apt(['ca-certificates','curl','tar','unzip','git','php8.3-cli','php8.3-fpm','php8.3-gd','php8.3-mysql','php8.3-mbstring','php8.3-bcmath','php8.3-xml','php8.3-curl','php8.3-zip','composer','mariadb-server','redis-server','nginx','certbot'])
-    php=run(['php','-r','echo PHP_VERSION;'])[0]
-    if tuple(map(int,php.split('-')[0].split('.')[:3]))<(8,3,36):raise RuntimeError('PHP 8.3.36 or a verified newer security patch is required. No unsafe downgrade/override is supported.')
-    if not run(['composer','--version'])[0].startswith('Composer version 2.'):raise RuntimeError('Composer 2 is required')
+    panel_dependencies(c.get('os_profile','ubuntu-24.04'))
     # Stop the newly installed webserver for standalone ACME; no pre-existing service was allowed above.
     run(['systemctl','stop','nginx']);step('Verifying DNS and issuing TLS certificate',25);certificate(host,email)
     step('Downloading and verifying Panel 1.15.2',36);root.mkdir(parents=True,mode=0o755)
@@ -112,10 +131,10 @@ def install_panel(c):
     step('Creating isolated database credentials',49)
     run(['mariadb'],"CREATE DATABASE zeta_panel; CREATE USER 'zeta_panel'@'127.0.0.1' IDENTIFIED BY '"+dbpass+"'; GRANT ALL PRIVILEGES ON zeta_panel.* TO 'zeta_panel'@'127.0.0.1';")
     step('Installing locked Composer dependencies and migrating database',60)
-    run(['composer','--working-dir='+str(root),'install','--no-dev','--optimize-autoloader','--no-interaction'],timeout=1200)
-    run(['php',str(root/'artisan'),'migrate','--seed','--force'],timeout=600)
+    run([PHP,'/usr/bin/composer','--working-dir='+str(root),'install','--no-dev','--optimize-autoloader','--no-interaction'],timeout=1200)
+    run([PHP,str(root/'artisan'),'migrate','--seed','--force'],timeout=600)
     phpcode="chdir('/var/www/pterodactyl');require 'vendor/autoload.php';$app=require 'bootstrap/app.php';$kernel=$app->make(Illuminate\\Contracts\\Console\\Kernel::class);$kernel->bootstrap();$x=json_decode(stream_get_contents(STDIN),true);$code=$kernel->call('p:user:make',['--email'=>$x['email'],'--username'=>$x['name'],'--name-first'=>'Zeta','--name-last'=>'Administrator','--password'=>$x['password'],'--admin'=>'1','--no-interaction'=>true]);exit($code);"
-    run(['php','-r',phpcode],json.dumps({'name':c['admin_name'],'email':email,'password':c['admin_password']}))
+    run([PHP,'-r',phpcode],json.dumps({'name':c['admin_name'],'email':email,'password':c['admin_password']}))
     run(['chown','-R','www-data:www-data',str(root)]);run(['chmod','-R','750',str(root/'storage'),str(root/'bootstrap/cache')]);os.chmod(root/'.env',0o640)
     step('Configuring Nginx, scheduler and Panel queue',76)
     nginx='''server { listen 80; server_name DOMAIN; return 301 https://$host$request_uri; }
@@ -129,8 +148,8 @@ location ~ \\.php$ { include snippets/fastcgi-php.conf; fastcgi_pass unix:/run/p
 location ~ /\\.ht { deny all; }
 }'''.replace('DOMAIN',host)
     write('/etc/nginx/sites-available/pterodactyl.conf',nginx,0o644);os.symlink('/etc/nginx/sites-available/pterodactyl.conf','/etc/nginx/sites-enabled/pterodactyl.conf')
-    write('/etc/cron.d/pterodactyl','* * * * * www-data php /var/www/pterodactyl/artisan schedule:run > /dev/null 2>&1\n',0o644)
-    write('/etc/systemd/system/pteroq.service','[Unit]\nDescription=Pterodactyl Queue\nAfter=redis-server.service mariadb.service\n[Service]\nUser=www-data\nGroup=www-data\nRestart=always\nExecStart=/usr/bin/php /var/www/pterodactyl/artisan queue:work --sleep=3 --tries=3\n[Install]\nWantedBy=multi-user.target\n',0o644)
+    write('/etc/cron.d/pterodactyl','* * * * * www-data /usr/bin/php8.3 /var/www/pterodactyl/artisan schedule:run > /dev/null 2>&1\n',0o644)
+    write('/etc/systemd/system/pteroq.service','[Unit]\nDescription=Pterodactyl Queue\nAfter=redis-server.service mariadb.service\n[Service]\nUser=www-data\nGroup=www-data\nRestart=always\nExecStart=/usr/bin/php8.3 /var/www/pterodactyl/artisan queue:work --sleep=3 --tries=3\n[Install]\nWantedBy=multi-user.target\n',0o644)
     run(['nginx','-t']);run(['systemctl','daemon-reload']);run(['systemctl','enable','--now','nginx','pteroq','cron']);step('Verifying Panel services and HTTPS',93)
     for svc in ['nginx','php8.3-fpm','mariadb','redis-server','pteroq']:run(['systemctl','is-active',svc])
     run(['redis-cli','PING']);run(['curl','--noproxy','*','--fail','--silent','--show-error','--max-time','20','https://'+host+'/auth/login'])

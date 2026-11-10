@@ -1,6 +1,6 @@
 <!-- coderabbit-ai-generated:v1 -->
 
-<!-- coderabbit-ai-generated-section:v1:54131f0ce276db7f6f6349c00a4893984e8fc4266423ba9952443a60f4497acb -->
+<!-- coderabbit-ai-generated-section:v1:ff12764d0080b1f45ed1d482bcbfe053f1db10a79016285f4c6be3ace41a6fa6 -->
 
 # Checklist validasi staging sebelum installer diaktifkan
 
@@ -8,7 +8,10 @@ Gunakan VPS sekali pakai milik sendiri. Pengujian ini belum dilakukan pada tugas
 
 ## Profil dasar
 
-- [ ] Ubuntu24.04 amd64/arm64 systemd, public IP terpasang langsung, Python3 dan passwordless sudo/root.
+- [ ] Jalankan seluruh matriks secara terpisah pada Ubuntu 22.04 dan 24.04, amd64/arm64, systemd, IP publik terpasang langsung, Python3 dan passwordless sudo/root.
+- [ ] Ubuntu 22.04: PPA ondrej/php ditambahkan dengan apt signature verification aktif; PHP 8.3.36+ dan Composer 2 tersedia. Ubuntu 24.04: tidak ada penambahan PPA tersebut.
+- [ ] Profil yang tidak cocok dengan OS aktual ditolak sebelum apt; perubahan OS sejak probe juga ditolak worker.
+- [ ] Composer, Artisan, cron dan pteroq memakai /usr/bin/php8.3 meskipun php default host adalah 8.1.
 - [ ] Bandingkan SSH fingerprint via provider console; test key benar/salah, host key mismatch, IP berubah dan sudo ditolak.
 - [ ] Probe OS/architecture/RAM/CPU/disk/package manager dibandingkan output console.
 - [ ] DNS A dan AAAA seluruhnya tepat, public80/443 tersedia, firewall eksternal dan lokal diperiksa terpisah.
@@ -23,6 +26,5 @@ Gunakan VPS sekali pakai milik sendiri. Pengujian ini belum dilakukan pada tugas
 - [ ] SMTP produksi, reset/verifikasi sekali pakai, TLS API/browser, CORS same-site custom domains, mobile/a11y, deployment health publik.
 
 Hanya setelah bukti tersimpan: set ENABLE_INSTALLERS=true pada API dan restart terkontrol. Gate ini adalah release safeguard, bukan bukti bahwa profil sudah lulus.
-
 
 <!-- /coderabbit-ai-generated:v1 -->

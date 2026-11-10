@@ -104,7 +104,8 @@ export const articles = [
     description:
       "Prepare a dedicated Linux VPS for a fresh Panel installation.",
     steps: [
-      "The first automatic profile is Ubuntu 24.04 with at least 2 GiB RAM and 10 GiB free disk. It still requires staging approval by the operator.",
+      "Select Ubuntu 22.04 or 24.04 to match the verified VPS. Both profiles require at least 2 GiB RAM, 10 GiB free disk and staging validation before enablement.",
+      "Ubuntu 22.04 adds the Ondřej PHP PPA from the official Panel guide for PHP 8.3; Ubuntu 24.04 uses its configured Ubuntu repositories. Review this additional package source before approval.",
       "Point all domain A/AAAA records to addresses actually assigned to the VPS.",
       "Use a fresh VPS without an existing Panel, database, Redis or Nginx installation.",
       "Enter the administrator email, username and a strong password; review the TLS and package changes.",
@@ -153,7 +154,7 @@ export const articles = [
     category: "INSTALLATION",
     description: "Connect a Linux Docker host to an existing Panel.",
     steps: [
-      "Prepare a compatible Ubuntu 24.04 VPS with Docker installed from its official signed repository.",
+      "Select the matching Ubuntu 22.04 or 24.04 profile. Install Docker from its official signed repository first; Wings does not need a PHP PPA.",
       "Add the node to your Panel and copy its official YAML configuration.",
       "Enter Panel URL, Node ID, node FQDN, certificate contact email and configuration in the installer.",
       "Check daemon/SFTP port conflicts, DNS, TLS and external firewall rules.",

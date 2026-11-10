@@ -25,6 +25,10 @@ import {
   fingerprint,
 } from "./security";
 import { scanHost, connect, remote } from "./ssh";
+import {
+  installationProfiles,
+  detectedProfile,
+} from "../lib/installation-profiles";
 const now = () => new Date().toISOString();
 const row = (user_id: string, more: any = {}) => ({
   id: crypto.randomUUID(),
@@ -954,6 +958,14 @@ export async function createApp(
           409,
           "This server requires diagnostics after an interrupted job before further remote changes",
         );
+      if (
+        "os_profile" in config &&
+        config.os_profile !== detectedProfile(s.evidence)
+      )
+        throw fail(
+          422,
+          "Installation profile does not match the verified VPS operating system. Test the SSH connection again and select the matching Ubuntu profile.",
+        );
       if (p.type === "upcloud_setup" && s.provider !== "UpCloud")
         throw fail(
           400,
@@ -1355,6 +1367,7 @@ export function validateJobConfig(type: string, input: any) {
   if (type === "install_panel")
     return z
       .object({
+        os_profile: z.enum(installationProfiles).default("ubuntu-24.04"),
         domain: domainSchema,
         email: z.email().max(254),
         admin_name: z.string().regex(/^[a-zA-Z0-9_-]{3,32}$/),
@@ -1367,6 +1380,7 @@ export function validateJobConfig(type: string, input: any) {
   if (["install_wings", "configure_wings", "upcloud_setup"].includes(type))
     return z
       .object({
+        os_profile: z.enum(installationProfiles).default("ubuntu-24.04"),
         domain: domainSchema,
         panel_url: z
           .url()

@@ -14,10 +14,12 @@
     "typecheck": "tsc --noEmit",
     "test": "tsx --test tests/*.test.ts",
     "check:runner": "python3 -m py_compile runner/agent.py",
+    "test:runner": "python3 -m unittest discover -s tests/runner -v",
     "admin": "tsx scripts/admin.ts",
     "format": "prettier --write app components lib backend worker scripts tests next.config.ts tsconfig.json package.json postcss.config.mjs",
     "test:email": "tsx --test tests/integration/email.test.ts",
-    "test:e2e": "node tests/e2e/browser.mjs"
+    "test:e2e": "node tests/e2e/browser.mjs",
+    "test:e2e:profiles": "node tests/e2e/profiles.mjs"
   },
   "dependencies": {
     "@fastify/cookie": "^11.0.2",

@@ -1,6 +1,6 @@
 <!-- coderabbit-ai-generated:v1 -->
 
-<!-- coderabbit-ai-generated-section:v1:c12a9646cfc38940e2ad4c19dc2859eafb864ad1e1e360a9f8a75c2f1b56020c -->
+<!-- coderabbit-ai-generated-section:v1:1543f25515d90bc9e65f39be82ee484404b78b2e5458e25197d6a25dd42a5e40 -->
 
 # ZetaInstall
 
@@ -28,7 +28,9 @@ Environment dibaca dari environment proses, bukan otomatis dari `.env` backend. 
 
 **Belum dinyatakan production ready.** Installer perubahan remote diblokir secara default (`ENABLE_INSTALLERS=false`). Buka gate hanya setelah menjalankan checklist staging pada VPS sekali pakai. Belum ada pengujian Panel/Wings/UpCloud pada VPS nyata atau deployment publik dalam tugas ini.
 
-Profil perubahan otomatis saat ini khusus Ubuntu 24.04, systemd, root atau passwordless sudo, RAM minimal 2 GiB dan disk bebas 10 GiB. Ini batas profil ZetaInstall, bukan klaim minimum resmi semua versi Pterodactyl. Provider tanpa IP publik yang terpasang langsung (NAT), OS lain, dan host non-systemd ditolak untuk perubahan otomatis. Semua provider tetap bisa ditambahkan bila koneksi SSH dan probe didukung. Probe memerlukan Python3, systemctl, ss dan akses root/sudo.
+Profil perubahan otomatis tersedia terpisah untuk Ubuntu 22.04 dan Ubuntu 24.04, systemd, root atau passwordless sudo, RAM minimal 2 GiB dan disk bebas 10 GiB. Ini batas profil ZetaInstall, bukan klaim minimum resmi semua versi Pterodactyl. Provider tanpa IP publik yang terpasang langsung (NAT), OS lain, dan host non-systemd ditolak untuk perubahan otomatis. Semua provider tetap bisa ditambahkan bila koneksi SSH dan probe didukung. Probe memerlukan Python3, systemctl, ss dan akses root/sudo.
+
+Pilih profil OS pada wizard; pilihan otomatis mengikuti hasil probe VPS yang dikenali. API menolak profil yang berbeda dari bukti probe, dan runner memeriksa ulang OS aktual sebelum perubahan. Ubuntu 22.04 menambahkan PPA `ondrej/php` yang dirujuk panduan resmi Pterodactyl untuk PHP 8.3. Ubuntu 24.04 tidak menambahkan PPA tersebut. Ini memperluas kontrak lama yang hanya menerima Ubuntu 24.04; default request API lama tetap Ubuntu 24.04. Wings tidak menambah repositori PHP. Kedua profil belum diuji instalasi pada VPS staging nyata.
 
 Panel fresh install menolak service/database/directory yang sudah ada dan mengharuskan PHP 8.3.36+. Konfigurasi Panel yang sudah ada menggunakan diagnostics dan panduan migrasi manual, bukan overwrite otomatis. Wings membutuhkan Docker Engine terpasang dari repository resmi dan konfigurasi YAML node asli. Konfigurasi Wings yang sudah ada ditolak agar token, volume dan TLS tidak tertimpa. Jika API Wings berhasil tetapi koneksi dari Panel belum diverifikasi, job tetap Failed dengan bukti bahwa instalasi telah diterapkan; jangan reinstall sembarangan.
 
@@ -42,12 +44,14 @@ Private key dibuat di backend dengan persetujuan eksplisit karena worker memerlu
 npm run typecheck
 npm test
 npm run check:runner
+npm run test:runner
 npm run test:e2e
+npm run test:e2e:profiles
 npm run build
 npm audit --omit=dev
 ```
 
-`npm run test:email` memerlukan emulator Resend lokal dan konfigurasi privat yang dijelaskan pada [deployment](docs/deployment.md). Tes inti tidak menghubungi alamat fixture SSH. `npm run test:e2e` memakai coderabbit-agent-browser pada sesi Chromium Preview yang sudah terdaftar dengan layanan web/API/worker aktif. Script menguji register, key download/OpenSSH, mobile navigation/axe, logout/login dan account deletion, lalu membersihkan akun sintetis. Tidak ada VPS yang dimutasi.
+`npm run test:email` memerlukan emulator Resend lokal dan konfigurasi privat yang dijelaskan pada [deployment](docs/deployment.md). Tes inti tidak menghubungi alamat fixture SSH. `npm run test:e2e` memakai coderabbit-agent-browser pada sesi Chromium Preview yang sudah terdaftar dengan layanan web/API/worker aktif. Script menguji register, key download/OpenSSH, mobile navigation/axe, logout/login dan account deletion, lalu membersihkan akun sintetis. Tidak ada VPS yang dimutasi. `npm run test:runner` menguji pemilihan OS, pemisahan repositori, batas PHP, dan penggunaan PHP 8.3 dengan I/O dimock. `npm run test:e2e:profiles` memeriksa pilihan profil dan FormData pada Panel/Wings/UpCloud di Chromium Preview, termasuk layout mobile dan axe. Keduanya tidak membuktikan hasil instalasi VPS.
 
 ## Dokumentasi operator
 
@@ -59,6 +63,5 @@ npm audit --omit=dev
 - [Validasi staging](docs/staging.md)
 
 Laporan riset tanggal 10 November 2026 beserta manifest sumber tersedia dalam Outputs tugas ZetaInstall. Versi installer dipin dan checksum diverifikasi. Tinjau ulang rilis/advisory resmi sebelum mengaktifkan instalasi pada lingkungan baru.
-
 
 <!-- /coderabbit-ai-generated:v1 -->

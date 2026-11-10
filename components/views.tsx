@@ -36,6 +36,11 @@ import {
 } from "lucide-react";
 import { api, download, relative } from "@/lib/client";
 import { articles } from "@/lib/docs";
+import {
+  installationProfiles,
+  detectedProfile,
+  profileLabel,
+} from "@/lib/installation-profiles";
 import { useWorkspace } from "./context";
 import {
   Heading,
@@ -598,6 +603,7 @@ export function Installer({ kind }: { kind: "panel" | "wings" | "upcloud" }) {
           "Verification",
         ];
   const [index, setIndex] = useState(0);
+  const [profile, setProfile] = useState("ubuntu-24.04");
   const existing =
     typeof window !== "undefined" &&
     new URLSearchParams(window.location.search).has("existing");
@@ -624,6 +630,7 @@ export function Installer({ kind }: { kind: "panel" | "wings" | "upcloud" }) {
             yaml: config.yaml,
             proxy: config.proxy === "on",
             consent: true,
+            os_profile: config.os_profile,
           }
         : {
             domain: config.domain,
@@ -632,6 +639,7 @@ export function Installer({ kind }: { kind: "panel" | "wings" | "upcloud" }) {
             admin_password: config.admin_password,
             ssl: true,
             consent: true,
+            os_profile: config.os_profile,
           };
       await api("/jobs", "POST", {
         server_id: config.server_id,
@@ -700,11 +708,21 @@ export function Installer({ kind }: { kind: "panel" | "wings" | "upcloud" }) {
                   <p>
                     {wing
                       ? "Use the official YAML from Admin → Nodes → Configuration. Never paste deployment commands."
-                      : "The first automatic profile targets a fresh Ubuntu 24.04 VPS. Existing services are preserved by refusing fresh installation."}
+                      : "Choose a separate Ubuntu 22.04 or 24.04 profile for a fresh VPS. Existing services are preserved by refusing fresh installation."}
                   </p>
                 </div>
                 <Field label="Target VPS">
-                  <select name="server_id" required>
+                  <select
+                    name="server_id"
+                    required
+                    onChange={(e) => {
+                      const detected = detectedProfile(
+                        available.find((s) => s.id === e.target.value)
+                          ?.evidence,
+                      );
+                      if (detected) setProfile(detected);
+                    }}
+                  >
                     <option value="">Select a verified server</option>
                     {available.map((s) => (
                       <option value={s.id} key={s.id}>
@@ -713,6 +731,30 @@ export function Installer({ kind }: { kind: "panel" | "wings" | "upcloud" }) {
                     ))}
                   </select>
                 </Field>
+                <Field
+                  label="Installation OS profile"
+                  hint="The worker checks the actual VPS OS before changing packages. A mismatch stops installation."
+                >
+                  <select
+                    name="os_profile"
+                    value={profile}
+                    onChange={(e) => setProfile(e.target.value)}
+                    required
+                  >
+                    {installationProfiles.map((p) => (
+                      <option key={p} value={p}>
+                        {profileLabel(p)}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+                <Notice info>
+                  {wing
+                    ? `${profile === "ubuntu-22.04" ? "Ubuntu 22.04" : "Ubuntu 24.04"} Wings profile: Docker Engine must already be installed. No PHP repository changes are made.`
+                    : profile === "ubuntu-22.04"
+                      ? "Ubuntu 22.04: adds the Ondřej PHP PPA documented by Pterodactyl, then installs PHP 8.3. This adds a third-party package source. PHP 8.1 is not used for Panel."
+                      : "Ubuntu 24.04: installs PHP 8.3 from the configured Ubuntu repositories. The Ubuntu 22.04 PHP PPA is not added."}
+                </Notice>
                 {!available.length && (
                   <Notice info>
                     Connect {upcloud ? "an UpCloud" : "a"} VPS first.{" "}
@@ -837,7 +879,12 @@ export function Installer({ kind }: { kind: "panel" | "wings" | "upcloud" }) {
                       ?.name,
                     Domain: config.domain,
                     Version: wing ? "Wings 1.13.4" : "Panel 1.15.2",
-                    OS: "Ubuntu 24.04",
+                    OS: profileLabel(config.os_profile),
+                    "PHP source": wing
+                      ? "Not required for Wings"
+                      : config.os_profile === "ubuntu-22.04"
+                        ? "Ondřej PHP PPA · PHP 8.3"
+                        : "Ubuntu repositories · PHP 8.3",
                     TLS: "Required · Let’s Encrypt",
                     Mode:
                       config.proxy === "on"
