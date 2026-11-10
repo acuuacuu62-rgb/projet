@@ -12,14 +12,16 @@ const key = () =>
     privateKeyEncoding: { type: "pkcs1", format: "pem" },
     publicKeyEncoding: { type: "spki", format: "pem" },
   }).privateKey;
-async function sshServer() {
+async function sshServer(password?: string) {
   const privateKey = key();
   let auth = 0;
   const server = new ssh2.Server({ hostKeys: [privateKey] }, (client) => {
     client.on("error", () => {});
     client.on("authentication", (ctx) => {
       auth++;
-      ctx.reject();
+      if (password && ctx.method === "password" && ctx.password === password)
+        ctx.accept();
+      else ctx.reject();
     });
   });
   server.listen(0, "127.0.0.1");
@@ -72,7 +74,7 @@ test("scan rejects closed ports and early disconnects and always times out on si
         (silent.address() as net.AddressInfo).port,
         150,
       ),
-      /timed out/,
+      /SSH handshake timed out/,
     );
   } finally {
     for (const s of sockets) s.destroy();
@@ -107,4 +109,77 @@ test("public scan still blocks private addresses and error messages never echo r
   assert(
     !scanFailure({ message: "password secret-value" }).includes("secret-value"),
   );
+});
+
+test("authenticated connection rejects a graceful close instead of hanging", async () => {
+  const { authenticateSSH } = await import("../backend/ssh");
+  const early = net.createServer((s) => {
+    s.resume();
+    s.end("SSH-2.0-fixture\r\n");
+  });
+  early.listen(0, "127.0.0.1");
+  await once(early, "listening");
+  try {
+    const outcome = await Promise.race([
+      authenticateSSH({
+        host: "127.0.0.1",
+        port: (early.address() as net.AddressInfo).port,
+        username: "fixture",
+        readyTimeout: 200,
+      }).then(
+        (c) => {
+          c.destroy();
+          return "resolved";
+        },
+        () => "rejected",
+      ),
+      new Promise<string>((r) => setTimeout(() => r("hung"), 500)),
+    ]);
+    assert.equal(outcome, "rejected");
+  } finally {
+    await close(early);
+  }
+});
+
+test("TCP timeout is distinguished from a stalled SSH handshake without echoing remote errors", () => {
+  assert.match(
+    scanFailure({ code: "ETIMEDOUT" }, false),
+    /TCP connection timed out before SSH started/,
+  );
+  assert.match(
+    scanFailure({ code: "ETIMEDOUT" }, true),
+    /SSH handshake timed out/,
+  );
+});
+test("two authenticated hosts retain pinned identities and failures release sockets", async () => {
+  const { authenticateSSH } = await import("../backend/ssh");
+  const first = await sshServer("fixture-password"),
+    second = await sshServer("fixture-password");
+  try {
+    for (const target of [first, second, first, second]) {
+      const config = {
+        host: "127.0.0.1",
+        port: target.port,
+        username: "fixture",
+        password: "fixture-password",
+        readyTimeout: 1000,
+        hostVerifier: (key: Buffer) => fingerprint(key) === target.fingerprint,
+      };
+      const client = await authenticateSSH(config);
+      const closed = once(client, "close");
+      client.end();
+      await closed;
+      await assert.rejects(
+        authenticateSSH({ ...config, password: "wrong-password" }),
+        /authentication or host key/,
+      );
+      await assert.rejects(
+        authenticateSSH({ ...config, hostVerifier: () => false }),
+        /authentication or host key/,
+      );
+    }
+  } finally {
+    await close(first.server);
+    await close(second.server);
+  }
 });

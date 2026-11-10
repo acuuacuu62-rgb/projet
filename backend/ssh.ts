@@ -2,23 +2,28 @@ import ssh2, { type ConnectConfig, type Client as SSHClient } from "ssh2";
 const { Client } = ssh2;
 import { readFile } from "node:fs/promises";
 import { destination, fingerprint } from "./security";
-export function scanFailure(error: {
-  code?: string;
-  level?: string;
-  message?: string;
-}) {
+export function scanFailure(
+  error: {
+    code?: string;
+    level?: string;
+    message?: string;
+  },
+  tcpConnected = true,
+) {
   if (error.code === "ECONNREFUSED")
     return "SSH port refused the connection. Check that sshd is running and listening on this port.";
   if (
     ["ENETUNREACH", "EHOSTUNREACH", "EADDRNOTAVAIL"].includes(error.code || "")
   )
-    return "SSH network is unreachable from the ZetaInstall worker. Check routing, IPv4/IPv6 availability and the provider firewall.";
+    return "SSH network is unreachable from the ZetaInstall backend. Check routing, IPv4/IPv6 availability and the provider firewall.";
   if (error.code === "ETIMEDOUT" || error.level === "client-timeout")
-    return "SSH handshake timed out before the host key was received. Check provider/local firewall rules, source-IP restrictions and SSH connection limits.";
+    return tcpConnected
+      ? "SSH handshake timed out before the host key was received. Check provider/local firewall rules, source-IP restrictions and SSH connection limits."
+      : "TCP connection timed out before SSH started. The backend could not connect to this address and port; check routing, source-IP restrictions and inbound/outbound firewall rules.";
   if (/no matching|no (?:kex|host key|cipher)/i.test(error.message || ""))
     return "SSH algorithm negotiation failed. Update the target SSH server configuration to support modern algorithms; host key verification has not been disabled.";
   if (error.code === "ECONNRESET")
-    return "SSH connection was reset before its host key was received. Check sshd logs, Fail2ban and provider connection limits for the worker IP.";
+    return "SSH connection was reset before its host key was received. Check sshd logs, Fail2ban and provider connection limits for the backend IP.";
   return "SSH connection closed before its host key was received. Verify that this port serves SSH and check sshd logs and source-IP restrictions.";
 }
 
@@ -27,7 +32,8 @@ export function scanSSHAddress(ip: string, port: number, timeout = 20000) {
   return new Promise<{ ip: string; fingerprint: string }>((resolve, reject) => {
     const client = new Client();
     let found = "",
-      settled = false;
+      settled = false,
+      tcpConnected = false;
     const finish = (error?: Error) => {
       if (settled) return;
       settled = true;
@@ -37,12 +43,15 @@ export function scanSSHAddress(ip: string, port: number, timeout = 20000) {
       else reject(error || new Error(scanFailure({})));
     };
     const timer = setTimeout(
-      () => finish(new Error(scanFailure({ code: "ETIMEDOUT" }))),
+      () => finish(new Error(scanFailure({ code: "ETIMEDOUT" }, tcpConnected))),
       timeout,
     );
     client.on("error", (error: Error & { code?: string; level?: string }) =>
-      finish(new Error(scanFailure(error))),
+      finish(new Error(scanFailure(error, tcpConnected))),
     );
+    client.once("connect", () => {
+      tcpConnected = true;
+    });
     client.on("close", () => finish());
     client.on("end", () => finish());
     try {
@@ -69,7 +78,6 @@ export async function connect(server: any, credential: any) {
   const ip = await destination(server.host);
   if (ip !== server.ip)
     throw new Error("DNS address changed. Test and trust the server again.");
-  const client = new Client();
   const config: ConnectConfig = {
     host: ip,
     port: server.port,
@@ -85,16 +93,50 @@ export async function connect(server: any, credential: any) {
     config.privateKey = credential.private_key;
     config.passphrase = credential.passphrase;
   }
+  return authenticateSSH(config);
+}
+// Internal transport helper; callers must validate and pin the destination first.
+export async function authenticateSSH(config: ConnectConfig) {
+  const client = new Client();
   await new Promise<void>((resolve, reject) => {
-    client.once("ready", resolve);
+    let settled = false;
+    const fail = (message: string) => {
+      if (!settled) {
+        settled = true;
+        clearTimeout(timer);
+        reject(new Error(message));
+      }
+      client.destroy();
+    };
+    const timer = setTimeout(
+      () => fail("SSH connection timed out before authentication completed."),
+      config.readyTimeout ?? 15000,
+    );
+    client.once("ready", () => {
+      settled = true;
+      clearTimeout(timer);
+      resolve();
+    });
+    client.on("end", () => {
+      if (!settled)
+        fail("SSH connection closed before authentication completed.");
+    });
+    client.on("close", () => {
+      if (!settled)
+        fail("SSH connection closed before authentication completed.");
+    });
     client.on("error", () =>
-      reject(
-        new Error(
-          "SSH authentication or host key verification failed. Check credentials and the pinned host fingerprint.",
-        ),
+      fail(
+        "SSH authentication or host key verification failed. Check credentials and the pinned host fingerprint.",
       ),
     );
-    client.connect(config);
+    try {
+      client.connect(config);
+    } catch {
+      fail(
+        "SSH connection configuration is invalid. Check the selected credentials.",
+      );
+    }
   });
   return client;
 }
