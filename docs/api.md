@@ -1,6 +1,6 @@
 <!-- coderabbit-ai-generated:v1 -->
 
-<!-- coderabbit-ai-generated-section:v1:d6a1cde4e293629da4833943628d9547edd4356447c986b71924b10bae619b49 -->
+<!-- coderabbit-ai-generated-section:v1:d26801dc402bafb8c9c75d7a5306bf22effb39f3c087e5372be8540c768e8434 -->
 
 # Kontrak API versi 1
 
@@ -41,6 +41,14 @@ SSE event `progress` berisi job safe tanpa config_secret. UI saat ini melakukan 
 ## Profil OS installer
 
 Config job `install_panel`, `install_wings`, `configure_wings` dan `upcloud_setup` menerima `os_profile: "ubuntu-22.04" | "ubuntu-24.04"`. Jika tidak dikirim, default tetap `ubuntu-24.04` untuk kompatibilitas request lama. Profil harus cocok dengan `evidence.os_id` dan `evidence.os_version` VPS; ketidakcocokan ditolak HTTP 422 sebelum queue, setelah pemeriksaan kepemilikan. Runner memeriksa ulang OS aktual sebelum operasi. UpCloud tetap hanya untuk provider UpCloud. Gate staging tetap berlaku.
+
+## Instalasi langsung tanpa menyimpan VPS
+
+`POST /v1/servers` mengembalikan 410. Installer menggunakan `/connections/scan`, menampilkan fingerprint untuk persetujuan eksplisit, kemudian `/connections/test` dengan server lengkap, probe_id dan trust:true. Bukti berhasil berlaku 10 menit dan terikat seluruh input, IP serta pemilik.
+
+`POST /v1/jobs` menerima tepat satu dari `server_id` (server lama) atau `connection: {server: <objek server yang diuji>, test_id: <bukti sukses>}`. Untuk koneksi langsung, tipe yang diterima adalah install_panel, install_wings, configure_wings dan upcloud_setup. Field config, confirmed:true dan idempotency_key tetap wajib sesuai kontrak installer. Jangan mengirim credential ke endpoint history atau log. Detail/password yang berubah memerlukan verifikasi ulang. Koneksi baru dibuat hanya setelah semua validasi dan enqueue berhasil dalam transaksi tunggal.
+
+Satu koneksi sementara hanya berlaku untuk satu job; terminal/cancel/recovery membersihkannya. Mengulang pemasangan memerlukan input dan verifikasi baru. Idempotency_key yang sama dengan payload sama mengembalikan job semula, bahkan setelah credential dihapus. Payload berbeda dengan key sama ditolak. Tidak ada tombol retry yang memakai credential sesi lama.
 
 
 <!-- /coderabbit-ai-generated:v1 -->

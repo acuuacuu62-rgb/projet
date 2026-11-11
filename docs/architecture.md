@@ -1,6 +1,6 @@
 <!-- coderabbit-ai-generated:v1 -->
 
-<!-- coderabbit-ai-generated-section:v1:8b0139341df522f2655fa366e2e482e9a9757abcc3c9e3c8bc01639b7e1ed80e -->
+<!-- coderabbit-ai-generated-section:v1:d7847dfdd403deb2d23eaa30ef6ed1873348b9aa1c36c5c9e7386d7e2414a7b5 -->
 
 # Arsitektur dan skema data
 
@@ -51,6 +51,16 @@ Config job dienkripsi dengan grant satu jam, hanya dibuka saat claim, lalu dibua
 Cancellation menghapus job Pending segera, atau dihormati sebelum remote action. Setelah mutasi dimulai, runner menyelesaikan aksi atomik operasionalnya; menghentikan apt/migrasi secara paksa tidak diimplementasikan. UI menyebut ini cancellation request, bukan menjanjikan rollback. Job tetap berjalan saat browser ditutup. Hanya job read-only yang memiliki retry langsung; perubahan remote membutuhkan review dan persetujuan baru.
 
 SSE `/v1/jobs/:id/events` mengirim progress yang sudah disimpan, heartbeat dan snapshot saat reconnect. UI memakai polling 6 detik sebagai mekanisme pembaruan, sehingga tidak bergantung pada tab awal. Log runner hanya tahap dan error tersaring; stdout/stderr command tidak diteruskan mentah.
+
+## Koneksi instalasi sementara (2026-11-11)
+
+Permintaan pengguna mengganti Add VPS dengan input SSH langsung pada installer. `POST /v1/servers` kini mengembalikan 410; route lama membuka Installation Center. Server lama tetap tersedia untuk dikelola/dihapus pemilik; tidak ada migrasi yang menghapusnya otomatis.
+
+Credential hanya berada pada state browser saat scan/test/review. Test menyimpan bukti terikat digest dan IP, tanpa password. Saat konfirmasi final, transaksi membuat server bertanda `temporary` dan job secara atomik. API/worker persisten tetap menjalankan job setelah tab ditutup. Lease hilang atau grant kedaluwarsa menghasilkan kegagalan, bukan melanjutkan perubahan tanpa pemeriksaan.
+
+Setiap transaksi membersihkan koneksi sementara untuk job Completed, Failed atau Cancelled. Probe yang digunakan, credential, konfigurasi job dan hasil diagnostik rinci dihapus; history menyisakan ID, tipe, status dan log tahap. Koneksi sementara tidak muncul di My Servers dan tidak dapat dipakai ulang. Backup aplikasi mengecualikan seluruh server sementara, probe dan secret job. Key yang memang disimpan pengguna di SSH Key Manager adalah sumber daya terpisah dan tidak dihapus bersama sesi.
+
+Penghapusan ini adalah penghapusan logis dari database aktif dan pengecualian backup aplikasi, bukan jaminan penghapusan blok SSD, snapshot provider, backup eksternal atau salinan yang telah diekspor. Mode ini tetap membutuhkan koneksi TCP/SSH yang berhasil; tidak mengatasi pemblokiran jaringan. Installer tetap dinonaktifkan sampai validasi staging tersedia.
 
 
 <!-- /coderabbit-ai-generated:v1 -->

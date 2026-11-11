@@ -92,7 +92,7 @@ try {
   );
   assert.equal(await ev(`location.pathname`), "/login");
   await cli("network", "unroute");
-  await cli("open", base + "/servers/add");
+  await cli("open", base + "/install/panel");
   await wait(`!!document.querySelector('button[aria-label="Sign in"]')`);
   await cli("click", 'button[aria-label="Sign in"]');
   // Hold one anonymous workspace request, complete login in the modal, then release its stale result.
@@ -119,7 +119,7 @@ try {
     "stale guest response must not clear authenticated user",
   );
   await ev(`(window.fetch=window.__originalFetch,true)`);
-  await cli("open", base + "/servers/add");
+  await cli("open", base + "/install/panel");
   await wait(
     `!!document.querySelector('a[aria-label="Open account settings"]')`,
   );

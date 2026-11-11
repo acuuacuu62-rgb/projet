@@ -9,7 +9,12 @@ import {
 } from "node:fs/promises";
 import path from "node:path";
 import lockfile from "proper-lockfile";
-import { databaseSchema, freshDatabase, type Database } from "../lib/contracts";
+import {
+  databaseSchema,
+  freshDatabase,
+  type Database,
+  terminal,
+} from "../lib/contracts";
 export class Store {
   private data: Database = freshDatabase();
   private pending: Promise<unknown> = Promise.resolve();
@@ -55,6 +60,7 @@ export class Store {
       const d = this.snapshot();
       const result = fn(d);
       d.revision++;
+      cleanupDirectSessions(d);
       databaseSchema.parse(d);
       try {
         await this.persist(d);
@@ -89,7 +95,12 @@ export class Store {
     const d = this.snapshot();
     d.sessions = [];
     d.auth_tokens = [];
-    for (const j of d.jobs) delete j.config_secret;
+    d.probes = [];
+    d.servers = d.servers.filter((s: any) => !s.temporary);
+    for (const j of d.jobs) {
+      delete j.config_secret;
+      if (j.temporary) delete j.result;
+    }
     return JSON.stringify(d);
   }
   private async persist(d: Database) {
@@ -130,5 +141,30 @@ export class Store {
   async close() {
     await this.pending;
     await this.release?.();
+  }
+}
+
+// Runs inside the single writer transaction, including terminal worker recovery paths.
+export function cleanupDirectSessions(d: Database) {
+  const finished = d.jobs.filter(
+    (j: any) => j.temporary && terminal.includes(j.status),
+  );
+  const ids = new Set(finished.map((j: any) => j.server_id));
+  const removed = d.servers.filter((s: any) => s.temporary && ids.has(s.id));
+  const probes = new Set(removed.flatMap((s: any) => s.probe_ids || []));
+  d.servers = d.servers.filter((s: any) => !s.temporary || !ids.has(s.id));
+  d.probes = d.probes.filter(
+    (p: any) =>
+      !probes.has(p.id) &&
+      p.expires_at > Date.now() &&
+      !removed.some(
+        (s: any) =>
+          s.user_id === p.user_id && s.host === p.host && s.port === p.port,
+      ),
+  );
+  for (const j of finished) {
+    delete j.config_secret;
+    delete j.result;
+    j.connection_removed = true;
   }
 }

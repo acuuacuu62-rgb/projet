@@ -149,7 +149,12 @@ while (!stopping) {
       ).catch(() => {});
     } finally {
       clearInterval(heartbeat);
-      ssh?.end();
+      if (job.server?.temporary) {
+        ssh?.destroy();
+        job.credential = null;
+        job.config = null;
+        job.server = null;
+      } else ssh?.end();
       active = null;
     }
   } catch {

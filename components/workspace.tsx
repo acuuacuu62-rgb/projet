@@ -33,7 +33,7 @@ import {
 } from "lucide-react";
 import { Provider, useWorkspace } from "./context";
 import { Logo, Modal } from "./ui";
-import { AuthForm, AddServer } from "./forms";
+import { AuthForm } from "./forms";
 import Dashboard from "./dashboard";
 import {
   Keys,
@@ -59,7 +59,7 @@ const nav = [
     group: "WORKSPACE",
     items: [
       { label: "Dashboard", href: "/", icon: LayoutDashboard },
-      { label: "My Servers", href: "/servers", icon: Server },
+      { label: "Saved servers (legacy)", href: "/servers", icon: Server },
       { label: "Installation Center", href: "/installation-center", icon: Zap },
       { label: "SSH Key Manager", href: "/ssh-keys", icon: KeyRound },
       { label: "Node Manager", href: "/nodes", icon: Network },
@@ -81,15 +81,15 @@ const labels = Object.fromEntries(
 function Content() {
   const path = usePathname();
   if (path === "/") return <Dashboard />;
-  if (path === "/servers/add") return <AddServer />;
+  if (path === "/servers/add") return <InstallationCenter />;
   if (path.startsWith("/servers/"))
     return <ServerDetail id={path.split("/")[2]} />;
   if (path === "/servers") return <Servers />;
   if (path === "/ssh-keys") return <Keys />;
   if (path === "/installation-center") return <InstallationCenter />;
-  if (path === "/install/panel") return <Installer kind="panel" />;
-  if (path === "/install/wings") return <Installer kind="wings" />;
-  if (path === "/upcloud") return <Installer kind="upcloud" />;
+  if (path === "/install/panel") return <Installer key={path} kind="panel" />;
+  if (path === "/install/wings") return <Installer key={path} kind="wings" />;
+  if (path === "/upcloud") return <Installer key={path} kind="upcloud" />;
   if (path === "/nodes") return <Nodes />;
   if (path === "/ssl") return <SSL />;
   if (path === "/firewall") return <Diagnostics firewall />;
@@ -161,7 +161,7 @@ function Shell() {
     labels[path] ||
     (
       {
-        "/servers/add": "Add VPS",
+        "/installation-center": "Install directly",
         "/documentation": "Documentation",
         "/settings": "Account Settings",
         "/activity": "Audit Log",
@@ -416,7 +416,11 @@ function Shell() {
           >
             {[
               ...nav.flatMap((g) => g.items),
-              { label: "Add VPS", href: "/servers/add", icon: Server },
+              {
+                label: "Install directly",
+                href: "/installation-center",
+                icon: Server,
+              },
               { label: "UpCloud Special Setup", href: "/upcloud", icon: Cloud },
               ...articles.map((a, i) => ({
                 label: a.title,

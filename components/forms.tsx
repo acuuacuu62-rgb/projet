@@ -367,10 +367,15 @@ export function PasswordDialog({
     </Modal>
   );
 }
-export function AddServer() {
-  const ctx = useWorkspace(),
-    router = useRouter();
-  const [mode, setMode] = useState("universal"),
+export function InstallationConnection({
+  onReady,
+  upcloud = false,
+}: {
+  onReady: (value: any) => void;
+  upcloud?: boolean;
+}) {
+  const ctx = useWorkspace();
+  const [mode, setMode] = useState(upcloud ? "upcloud" : "universal"),
     [stage, setStage] = useState(0),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
@@ -428,27 +433,19 @@ export function AddServer() {
       setBusy(false);
     }
   }
-  async function save() {
-    setBusy(true);
-    try {
-      await api("/servers", "POST", {
-        server: { ...draft, fingerprint: probe.fingerprint },
-        test_id: test.test_id,
-      });
-      await ctx.refresh();
-      ctx.notice("VPS connected and saved to your workspace.");
-      router.push("/servers");
-    } catch (e: any) {
-      setError(e.message);
-    } finally {
-      setBusy(false);
-    }
+  function save() {
+    onReady({
+      server: { ...draft, fingerprint: probe.fingerprint },
+      test_id: test.test_id,
+      evidence: test.evidence,
+    });
+    setDraft(null);
   }
   return (
     <>
       <Heading
-        title="Add a VPS"
-        description="Your provider. Your server. One secure connection."
+        title="Connect for this installation"
+        description="Enter SSH details for this job only. No VPS is saved to your workspace."
       />
       <div className="split-layout">
         <div>
@@ -468,6 +465,7 @@ export function AddServer() {
               <div className="mode-cards">
                 <button
                   className={`mode-card ${mode === "universal" ? "selected" : ""}`}
+                  disabled={upcloud}
                   onClick={() => setMode("universal")}
                 >
                   <Server size={21} />
@@ -539,7 +537,10 @@ export function AddServer() {
                       />
                     </Field>
                     <Field label="Authentication method">
-                      <select name="auth" defaultValue="key">
+                      <select
+                        name="auth"
+                        defaultValue={ctx.keys.length ? "key" : "password"}
+                      >
                         <option value="key">
                           SSH private key · Recommended
                         </option>
@@ -666,7 +667,7 @@ export function AddServer() {
                 ))}
               </div>
               <Notice info>
-                A saved connection does not mean the OS supports every
+                A verified connection does not mean the OS supports every
                 installer. Each installation runs its own compatibility and
                 safety checks.
               </Notice>
@@ -678,7 +679,7 @@ export function AddServer() {
                 <button className="btn primary" disabled={busy} onClick={save}>
                   <Busy busy={busy}>
                     <Plus />
-                    Save verified VPS
+                    Continue to installation
                   </Busy>
                 </button>
               </div>

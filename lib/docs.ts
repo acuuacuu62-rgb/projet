@@ -3,13 +3,13 @@ export const articles = [
     title: "Getting started",
     category: "THE ESSENTIALS",
     description:
-      "Your first deployment, from an empty workspace to a connected server.",
+      "Connect a VPS for one installation without storing a permanent server.",
     steps: [
       "Create a ZetaInstall account. Your workspace is isolated from other users.",
       "Generate an SSH key and download the private key to a safe location.",
       "Add the public key to your VPS using the provider console or an existing SSH connection.",
-      "Open Add VPS, enter the public address, and compare the host fingerprint with the provider console.",
-      "Test the connection, review detected resources, then save the server.",
+      "Choose Install Panel or Install Wings, enter SSH connection details, and compare the host fingerprint with the provider console.",
+      "Test the connection and review detected resources. The installer uses a temporary connection; there is no Save VPS step.",
       "Choose an installer, review the exact changes, and follow the persistent job.",
     ],
   },
@@ -25,7 +25,7 @@ export const articles = [
     ],
   },
   {
-    title: "Add a VPS",
+    title: "Temporary installation connection",
     category: "SERVERS & SSH",
     description: "Connect any compatible VPS without a provider API key.",
     steps: [
@@ -33,7 +33,7 @@ export const articles = [
       "Enter the public address, SSH port and the username supplied by your OS image.",
       "Select your SSH key or enter a password for the initial connection.",
       "Scan the host key. Compare its SHA256 fingerprint with a trusted provider console.",
-      "Confirm trust, run the connection test, then save the verified configuration.",
+      "Confirm trust, run the connection test, and continue to installer configuration. The backend removes this temporary connection after the job ends.",
     ],
   },
   {

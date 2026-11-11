@@ -52,7 +52,12 @@ import {
   Busy,
   DocsLink,
 } from "./ui";
-import { KeyDialog, PasswordDialog, AuthForm } from "./forms";
+import {
+  KeyDialog,
+  PasswordDialog,
+  AuthForm,
+  InstallationConnection,
+} from "./forms";
 import { ServerTable, InstallCards } from "./dashboard";
 export function Keys() {
   const c = useWorkspace();
@@ -241,12 +246,12 @@ export function Servers() {
   return (
     <>
       <Heading
-        title="My servers"
-        description="All your infrastructure. Every provider. One workspace."
+        title="Previously saved servers"
+        description="Manage existing records. New installations use a temporary connection."
       >
-        <Link href="/servers/add" className="btn primary">
+        <Link href="/installation-center" className="btn primary">
           <Plus />
-          Add VPS
+          Install directly
         </Link>
       </Heading>
       <div className="panel">
@@ -573,9 +578,8 @@ export function Installer({ kind }: { kind: "panel" | "wings" | "upcloud" }) {
     [config, setConfig] = useState<any>(null);
   const wing = kind !== "panel",
     upcloud = kind === "upcloud";
-  const available = c.servers.filter(
-    (s) => !upcloud || s.provider === "UpCloud",
-  );
+  const [connection, setConnection] = useState<any>(null);
+  const [requestId] = useState(() => crypto.randomUUID());
   const stages =
     kind === "panel"
       ? [
@@ -642,7 +646,7 @@ export function Installer({ kind }: { kind: "panel" | "wings" | "upcloud" }) {
             os_profile: config.os_profile,
           };
       await api("/jobs", "POST", {
-        server_id: config.server_id,
+        connection: { server: connection.server, test_id: connection.test_id },
         type: upcloud
           ? "upcloud_setup"
           : wing
@@ -652,8 +656,10 @@ export function Installer({ kind }: { kind: "panel" | "wings" | "upcloud" }) {
             : "install_panel",
         config: options,
         confirmed: true,
-        idempotency_key: crypto.randomUUID(),
+        idempotency_key: requestId,
       });
+      setConnection(null);
+      setConfig(null);
       await c.refresh();
       c.notice(
         "Installation queued. The worker continues even if this tab closes.",
@@ -665,6 +671,17 @@ export function Installer({ kind }: { kind: "panel" | "wings" | "upcloud" }) {
       setBusy(false);
     }
   }
+  if (!connection)
+    return (
+      <InstallationConnection
+        upcloud={upcloud}
+        onReady={(value) => {
+          setConnection(value);
+          const detected = detectedProfile(value.evidence);
+          if (detected) setProfile(detected);
+        }}
+      />
+    );
   return (
     <>
       <Heading
@@ -711,26 +728,11 @@ export function Installer({ kind }: { kind: "panel" | "wings" | "upcloud" }) {
                       : "Choose a separate Ubuntu 22.04 or 24.04 profile for a fresh VPS. Existing services are preserved by refusing fresh installation."}
                   </p>
                 </div>
-                <Field label="Target VPS">
-                  <select
-                    name="server_id"
-                    required
-                    onChange={(e) => {
-                      const detected = detectedProfile(
-                        available.find((s) => s.id === e.target.value)
-                          ?.evidence,
-                      );
-                      if (detected) setProfile(detected);
-                    }}
-                  >
-                    <option value="">Select a verified server</option>
-                    {available.map((s) => (
-                      <option value={s.id} key={s.id}>
-                        {s.name} · {s.evidence.os}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
+                <Notice info>
+                  Target: {connection.server.host}:{connection.server.port}.
+                  Connection credentials are removed from the backend when this
+                  job ends.
+                </Notice>
                 <Field
                   label="Installation OS profile"
                   hint="The worker checks the actual VPS OS before changing packages. A mismatch stops installation."
@@ -755,15 +757,6 @@ export function Installer({ kind }: { kind: "panel" | "wings" | "upcloud" }) {
                       ? "Ubuntu 22.04: adds the Ondřej PHP PPA documented by Pterodactyl, then installs PHP 8.3. This adds a third-party package source. PHP 8.1 is not used for Panel."
                       : "Ubuntu 24.04: installs PHP 8.3 from the configured Ubuntu repositories. The Ubuntu 22.04 PHP PPA is not added."}
                 </Notice>
-                {!available.length && (
-                  <Notice info>
-                    Connect {upcloud ? "an UpCloud" : "a"} VPS first.{" "}
-                    <Link href="/servers/add" className="text-link">
-                      Add VPS
-                      <ArrowRight size={12} />
-                    </Link>
-                  </Notice>
-                )}
                 <div className="form-grid">
                   <Field label={wing ? "Node FQDN" : "Panel domain"}>
                     <input
@@ -875,8 +868,7 @@ export function Installer({ kind }: { kind: "panel" | "wings" | "upcloud" }) {
                 </div>
                 <div className="evidence-grid">
                   {Object.entries({
-                    Server: c.servers.find((s) => s.id === config.server_id)
-                      ?.name,
+                    Server: connection.server.host,
                     Domain: config.domain,
                     Version: wing ? "Wings 1.13.4" : "Panel 1.15.2",
                     OS: profileLabel(config.os_profile),
@@ -1024,6 +1016,12 @@ export function History({ filter }: { filter?: string }) {
               <span>{j.step}</span>
               <span>{j.progress}%</span>
             </div>
+            {j.connection_removed && (
+              <Notice info>
+                Temporary VPS connection and credentials deleted. Enter new
+                connection details for another installation.
+              </Notice>
+            )}
             {j.error && <div className="inline-error">{j.error}</div>}
             <details>
               <summary>View stage logs & verification evidence</summary>
@@ -1044,7 +1042,8 @@ export function History({ filter }: { filter?: string }) {
               )}
             </details>
             <div style={{ display: "flex", gap: 12, marginTop: 17 }}>
-              {["Failed", "Cancelled", "Completed"].includes(j.status) &&
+              {!j.temporary &&
+                ["Failed", "Cancelled", "Completed"].includes(j.status) &&
                 ["diagnostics", "firewall_check", "ssl_check"].includes(
                   j.type,
                 ) && (
@@ -1086,7 +1085,7 @@ export function History({ filter }: { filter?: string }) {
                     : "Request cancellation"}
                 </button>
               )}
-              {["Failed", "Completed"].includes(j.status) && (
+              {!j.temporary && ["Failed", "Completed"].includes(j.status) && (
                 <Link
                   href={"/diagnostics?server=" + j.server_id}
                   className="text-link"
@@ -2328,7 +2327,7 @@ export function Features() {
             title: "Any VPS provider",
             text: "SSH-first connections across UpCloud, AWS, DigitalOcean, Vultr, Hetzner and custom providers.",
             icon: Cloud,
-            href: "/servers/add",
+            href: "/installation-center",
           },
           {
             title: "Encrypted SSH vault",

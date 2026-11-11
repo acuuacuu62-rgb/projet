@@ -1,6 +1,6 @@
 <!-- coderabbit-ai-generated:v1 -->
 
-<!-- coderabbit-ai-generated-section:v1:cc444e8cd75690dcb39dbf202fa782505a369d0581b72370582f824a8a361179 -->
+<!-- coderabbit-ai-generated-section:v1:30b169e6aca41ffcb8d61243091ba634f7500b97741af685b5b4c0d13351bb37 -->
 
 # ZetaInstall
 
@@ -18,7 +18,7 @@ Environment dibaca dari environment proses, bukan otomatis dari `.env` backend. 
 
 - Register, login/logout, profil, perubahan password, penghapusan akun, manajemen sesi, role administrator; forgot/reset password dan verifikasi email melalui SMTP atau Resend yang dikonfigurasi.
 - SSH Key Manager: Ed25519/RSA4096, passphrase, public/private download, ekspor ulang dengan konfirmasi password, private key terenkripsi.
-- Add VPS: 14 pilihan provider termasuk Other Provider, Universal dan UpCloud terpisah, scan fingerprint tanpa autentikasi, persetujuan identitas host, test SSH nyata, deteksi OS/resource/root dan penyimpanan hanya setelah test berhasil.
+- Instalasi langsung: input koneksi per job, 14 provider termasuk Other Provider, Universal dan UpCloud terpisah, verifikasi fingerprint dan preflight nyata. Credential sementara dihapus setelah job berakhir.
 - Node metadata, domain/DNS, verifikasi sertifikat TLS nyata, job diagnostics/firewall dan audit log per pengguna.
 - Antrean persisten, worker terpisah, progress tahap nyata, SSE API dan polling UI, deduplikasi, timeout, cancellation sebelum aksi, pemulihan lease dengan blokir perubahan sampai diagnostics selesai.
 - Profil runner Panel 1.15.2, Wings 1.13.4, UpCloud direct/reverse proxy, operasi Certbot dan service repair dengan command allowlist.
@@ -67,5 +67,11 @@ npm audit --omit=dev
 - [Validasi staging](docs/staging.md)
 
 Laporan riset tanggal 10 November 2026 beserta manifest sumber tersedia dalam Outputs tugas ZetaInstall. Versi installer dipin dan checksum diverifikasi. Tinjau ulang rilis/advisory resmi sebelum mengaktifkan instalasi pada lingkungan baru.
+
+## Pembaruan alur instalasi langsung
+
+Fitur Add VPS dan penyimpanan VPS baru telah diganti: pilih Panel/Wings/UpCloud, isi IP publik, port, username dan password atau SSH key, verifikasi fingerprint dan hasil koneksi, lalu konfirmasi job. Tidak ada langkah Save VPS. Credential koneksi sementara dienkripsi saat job masuk antrean, tidak dimasukkan ke backup aplikasi, dan dihapus otomatis saat job berakhir. Riwayat status tetap tersedia. Lihat docs/architecture.md untuk batas penghapusan dan perlakuan server/key lama.
+
+Perubahan memerlukan pembaruan frontend Vercel serta kode API dan worker di VPS. Tidak ada dependency baru atau penghapusan database. Tunggu job aktif selesai, cadangkan konfigurasi sesuai kebijakan operasional, perbarui source, lalu restart zetainstall-api dan zetainstall-worker. Jangan menimpa .env atau data/keys. Tidak perlu mengaktifkan installer sampai staging tervalidasi. TCP/SSH timeout tetap perlu diselesaikan pada jalur jaringan.
 
 <!-- /coderabbit-ai-generated:v1 -->

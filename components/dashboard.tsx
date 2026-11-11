@@ -177,13 +177,13 @@ export function ServerTable({
           description={
             search
               ? "Try another server name, provider, or IP address."
-              : "Connect your first VPS to manage your infrastructure, run diagnostics, and start installing."
+              : "Start a direct installation to manage your infrastructure, run diagnostics, and start installing."
           }
         >
           {!search && (
-            <Link className="btn small" href="/servers/add">
+            <Link className="btn small" href="/installation-center">
               <Plus size={12} />
-              Connect your first VPS
+              Start a direct installation
             </Link>
           )}
         </Empty>
@@ -210,10 +210,10 @@ export default function Dashboard() {
       href: "/ssh-keys",
     },
     {
-      title: "Connect your first VPS",
+      title: "Start a direct installation",
       description: "Any provider. One dashboard.",
-      done: ctx.servers.length > 0,
-      href: "/servers/add",
+      done: ctx.jobs.length > 0,
+      href: "/installation-center",
     },
     {
       title: "Run your first installation",
@@ -235,9 +235,9 @@ export default function Dashboard() {
           <BookOpen />
           Documentation
         </Link>
-        <Link href="/servers/add" className="btn primary">
+        <Link href="/installation-center" className="btn primary">
           <Plus />
-          Add VPS
+          Install directly
         </Link>
       </Heading>
       <div className="hero">

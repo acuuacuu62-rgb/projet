@@ -233,7 +233,7 @@ export async function createApp(
     const { u, s } = current,
       d = store.snapshot();
     const servers = d.servers
-      .filter((x: any) => x.user_id === u.id)
+      .filter((x: any) => x.user_id === u.id && !x.temporary)
       .map(({ credential, ...x }: any) => x);
     return {
       user: safeUser(u),
@@ -485,10 +485,13 @@ export async function createApp(
     const { u } = session(req);
     const d = store.snapshot();
     return {
-      servers: d.servers.filter((x: any) => x.user_id === u.id).length,
+      servers: d.servers.filter((x: any) => x.user_id === u.id && !x.temporary)
+        .length,
       keys: d.ssh_keys.filter((x: any) => x.user_id === u.id).length,
       nodes: d.nodes.filter((x: any) => x.user_id === u.id).length,
-      jobs: d.jobs.filter((x: any) => x.user_id === u.id),
+      jobs: d.jobs
+        .filter((x: any) => x.user_id === u.id)
+        .map(({ config_secret, ...j }: any) => j),
       activity: d.activity_logs
         .filter((x: any) => x.user_id === u.id)
         .slice(-12)
@@ -657,6 +660,8 @@ export async function createApp(
         port: server.port,
         fingerprint: server.fingerprint,
         server_digest: hash(JSON.stringify(p.server)),
+        ip: server.ip,
+        scan_id: probe.id,
         evidence,
         expires_at: Date.now() + 600000,
       });
@@ -668,61 +673,15 @@ export async function createApp(
     const { u } = session(req);
     return store
       .snapshot()
-      .servers.filter((s: any) => s.user_id === u.id)
+      .servers.filter((s: any) => s.user_id === u.id && !s.temporary)
       .map(({ credential, ...s }: any) => s);
   });
-  app.post("/v1/servers", async (req, reply) => {
-    const { u } = session(req);
-    const p = z
-      .object({ server: serverSchema, test_id: z.string() })
-      .parse(req.body);
-    const test = owned(store.snapshot(), "probes", p.test_id, u.id);
-    if (
-      test.expires_at < Date.now() ||
-      test.server_digest !== hash(JSON.stringify(p.server))
-    )
-      throw fail(
-        409,
-        "A successful connection test for these exact settings is required.",
-      );
-    const ip = await destination(p.server.host);
-    const probe = store
-      .snapshot()
-      .probes.find(
-        (x: any) =>
-          x.user_id === u.id &&
-          x.host === p.server.host &&
-          x.fingerprint === p.server.fingerprint &&
-          x.ip === ip,
-      );
-    if (!probe) throw fail(409, "Network address changed. Scan again.");
-    const { password, passphrase, ...safe } = p.server;
-    const server = row(u.id, {
-      ...safe,
-      ip,
-      evidence: test.evidence,
-      status: "verified",
-      last_verified_at: now(),
-      credential: vault.seal(
-        JSON.stringify({ password, passphrase }),
-        u.id,
-        "connection",
-      ),
-    });
-    await store.transaction((d) => {
-      if (
-        d.servers.some(
-          (s: any) =>
-            s.user_id === u.id && s.ip === ip && s.port === server.port,
-        )
-      )
-        throw fail(409, "This SSH endpoint is already in your workspace");
-      d.servers.push(server);
-      audit(d, u.id, "server.added", server.id);
-    });
-    reply.code(201);
-    const { credential, ...publicServer } = server;
-    return publicServer;
+  app.post("/v1/servers", async (req) => {
+    session(req);
+    throw fail(
+      410,
+      "Saved VPS creation has been removed. Enter connection details directly in the installer.",
+    );
   });
   app.patch("/v1/servers/:id", async (req) => {
     const { u } = session(req);
@@ -925,13 +884,21 @@ export async function createApp(
     const { u } = session(req);
     const p = z
       .object({
-        server_id: z.string(),
+        server_id: z.string().optional(),
+        connection: z
+          .object({ server: serverSchema, test_id: z.string() })
+          .strict()
+          .optional(),
         type: z.enum(jobTypes),
         config: z.record(z.string(), z.unknown()).default({}),
         confirmed: z.boolean().default(false),
         idempotency_key: z.string().min(16).max(100),
       })
       .strict()
+      .refine(
+        (p) => !!p.server_id !== !!p.connection,
+        "Choose exactly one connection",
+      )
       .parse(req.body);
     const mutating = !["diagnostics", "firewall_check", "ssl_check"].includes(
       p.type,
@@ -945,14 +912,81 @@ export async function createApp(
       throw fail(400, "Review and explicitly approve the remote changes");
     const config = validateJobConfig(p.type, p.config);
     const digest = hash(
-      JSON.stringify({ server_id: p.server_id, type: p.type, config }),
+      JSON.stringify({
+        server_id: p.server_id,
+        connection: p.connection,
+        type: p.type,
+        config,
+      }),
     );
+    const replay = store
+      .snapshot()
+      .jobs.find(
+        (j: any) =>
+          j.user_id === u.id && j.idempotency_key === p.idempotency_key,
+      );
+    if (replay) {
+      if (replay.request_digest !== digest)
+        throw fail(409, "Idempotency key reused with different settings");
+      const { config_secret, ...safe } = replay;
+      return safe;
+    }
+    let direct: any;
+    if (p.connection) {
+      if (
+        ![
+          "install_panel",
+          "install_wings",
+          "configure_wings",
+          "upcloud_setup",
+        ].includes(p.type)
+      )
+        throw fail(400, "Direct connections are for installation jobs");
+      const test = owned(
+        store.snapshot(),
+        "probes",
+        p.connection.test_id,
+        u.id,
+      );
+      if (
+        test.expires_at < Date.now() ||
+        test.server_digest !== hash(JSON.stringify(p.connection.server))
+      )
+        throw fail(
+          409,
+          "Connection check expired or details changed. Verify SSH again.",
+        );
+      const ip = await destination(p.connection.server.host);
+      if (ip !== test.ip)
+        throw fail(409, "Network address changed. Verify SSH again.");
+      const { password, passphrase, ...safe } = p.connection.server;
+      direct = row(u.id, {
+        ...safe,
+        name: "Temporary installation VPS",
+        ip,
+        evidence: test.evidence,
+        temporary: true,
+        probe_ids: [test.id, test.scan_id],
+        credential: vault.seal(
+          JSON.stringify({ password, passphrase }),
+          u.id,
+          "connection",
+        ),
+      });
+    }
     const job = await store.transaction((d) => {
       if (
         d.settings.some((x: any) => x.key === "maintenance" && x.value === true)
       )
         throw fail(503, "New jobs are paused for maintenance");
-      const s = owned(d, "servers", p.server_id, u.id);
+      const s = direct || owned(d, "servers", p.server_id!, u.id);
+      if (s.temporary && !direct)
+        throw fail(
+          409,
+          "Temporary connections cannot be reused. Verify a new connection.",
+        );
+      if (direct?.auth === "key") owned(d, "ssh_keys", direct.key_id, u.id);
+
       if (s.recovery_required && mutating)
         throw fail(
           409,
@@ -987,9 +1021,39 @@ export async function createApp(
         )
       )
         throw fail(409, "A job is already active for this server");
+      if (
+        d.jobs.some(
+          (j: any) =>
+            !terminal.includes(j.status) &&
+            d.servers.some(
+              (x: any) =>
+                x.id === j.server_id &&
+                (s.temporary || x.temporary) &&
+                x.ip === s.ip &&
+                x.port === s.port,
+            ),
+        )
+      )
+        throw fail(409, "An installation already uses this SSH endpoint");
+      if (direct) {
+        const proof = owned(d, "probes", p.connection!.test_id, u.id);
+        if (
+          proof.expires_at < Date.now() ||
+          proof.server_digest !== hash(JSON.stringify(p.connection!.server))
+        )
+          throw fail(
+            409,
+            "Connection check expired or details changed. Verify SSH again.",
+          );
+        d.servers.push(direct);
+        d.probes = d.probes.filter(
+          (x: any) => !direct.probe_ids.includes(x.id),
+        );
+      }
       const j = row(u.id, {
         server_id: s.id,
         server_name: s.name,
+        temporary: !!s.temporary,
         type: p.type,
         status: "Pending",
         step: "Waiting for worker",
